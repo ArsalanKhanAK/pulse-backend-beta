@@ -98,3 +98,18 @@ exports.getMe = async (req, res) => {
     return res.status(500).json({ success: false, message: 'An internal server error occurred.' });
   }
 };
+
+// Retrieve Global App Settings
+exports.getSettings = async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT setting_key, setting_value FROM app_settings');
+    const settings = rows.reduce((acc, curr) => {
+      acc[curr.setting_key] = curr.setting_value;
+      return acc;
+    }, {});
+    return res.status(200).json({ success: true, data: settings });
+  } catch (error) {
+    console.error('[Auth Controller] getSettings error:', error.message);
+    return res.status(500).json({ success: false, message: 'An internal server error occurred.' });
+  }
+};

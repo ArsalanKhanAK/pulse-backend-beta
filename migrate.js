@@ -62,7 +62,12 @@ async function runMigration() {
     if (!userColNames.includes('role')) {
       console.log('[Migration] Adding \'role\' column to \'users\'...');
       await connection.query(`
-        ALTER TABLE users ADD COLUMN role ENUM('super_admin', 'gym_admin') DEFAULT 'gym_admin';
+        ALTER TABLE users ADD COLUMN role ENUM('master_admin', 'super_admin', 'gym_admin') DEFAULT 'gym_admin';
+      `);
+    } else {
+      console.log('[Migration] Modifying \'role\' column to include master_admin...');
+      await connection.query(`
+        ALTER TABLE users MODIFY COLUMN role ENUM('master_admin', 'super_admin', 'gym_admin') DEFAULT 'gym_admin';
       `);
     }
     if (!userColNames.includes('gym_id')) {
@@ -199,18 +204,55 @@ async function runMigration() {
       `);
     }
 
-    // 6. Seed default Super Admin account if it doesn't exist
-    console.log('[Migration] Seeding default Super Admin...');
+    // 6. Create app_settings table
+    console.log('[Migration] Creating or verifying \'app_settings\' table...');
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        setting_key VARCHAR(100) UNIQUE NOT NULL,
+        setting_value TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // 7. Insert default payment numbers if not exists
+    const [easypaisaSetting] = await connection.query("SELECT * FROM app_settings WHERE setting_key = 'easypaisa_number'");
+    if (easypaisaSetting.length === 0) {
+      await connection.query("INSERT INTO app_settings (setting_key, setting_value) VALUES ('easypaisa_number', '03150135488')");
+    }
+    const [jazzcashSetting] = await connection.query("SELECT * FROM app_settings WHERE setting_key = 'jazzcash_number'");
+    if (jazzcashSetting.length === 0) {
+      await connection.query("INSERT INTO app_settings (setting_key, setting_value) VALUES ('jazzcash_number', '03150135488')");
+    }
+
+    // 8. Create audit_logs table
+    console.log('[Migration] Creating or verifying \'audit_logs\' table...');
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        admin_id INT NOT NULL,
+        action_type VARCHAR(100) NOT NULL,
+        target_gym_id INT NULL,
+        description TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (target_gym_id) REFERENCES gyms(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // 9. Seed default Master Admin account
+    console.log('[Migration] Promoting default admin to Master Admin...');
     const [superAdmins] = await connection.query('SELECT * FROM users WHERE username = ?;', ['superadmin']);
     if (superAdmins.length === 0) {
       const hashedPassword = await bcrypt.hash('super123', 10);
       await connection.query(`
         INSERT INTO users (username, password, role, status)
-        VALUES (?, ?, 'super_admin', 'active');
+        VALUES (?, ?, 'master_admin', 'active');
       `, ['superadmin', hashedPassword]);
-      console.log('[Migration] Super Admin seeded: superadmin / super123');
+      console.log('[Migration] Master Admin seeded: superadmin / super123');
     } else {
-      console.log('[Migration] Super Admin already exists.');
+      await connection.query(`UPDATE users SET role = 'master_admin' WHERE username = 'superadmin'`);
+      console.log('[Migration] Updated existing superadmin to master_admin.');
     }
 
     console.log('\n[SUCCESS] SaaS Database Migrations executed successfully!');

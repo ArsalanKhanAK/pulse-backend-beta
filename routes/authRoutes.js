@@ -9,4 +9,7 @@ router.post('/login', authController.login);
 // Protected Route: Retrieve Active Admin Account
 router.get('/me', authMiddleware, authController.getMe);
 
+// Public Route: Retrieve App Settings (Payment Numbers)
+router.get('/settings', authController.getSettings);
+
 module.exports = router;

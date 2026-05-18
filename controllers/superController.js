@@ -126,6 +126,12 @@ exports.adjustDays = async (req, res) => {
       [baseDate, status, graceDate, userId]
     );
 
+    // Log the action
+    await pool.query(
+      'INSERT INTO audit_logs (admin_id, action_type, target_gym_id, description) VALUES (?, ?, ?, ?)',
+      [req.user.id, 'ADJUST_DAYS', user.gym_id, `Adjusted subscription by ${days > 0 ? '+' : ''}${days} days for Gym Admin ${user.username}.`]
+    );
+
     return res.status(200).json({
       success: true,
       message: `Subscription successfully adjusted by ${days} days! New expiry: ${baseDate.toISOString().slice(0, 10)}`
@@ -174,6 +180,12 @@ exports.adjustGraceDays = async (req, res) => {
        SET grace_period_expires_at = ?, status = ? 
        WHERE id = ?`,
       [baseDate, status, userId]
+    );
+
+    // Log the action
+    await pool.query(
+      'INSERT INTO audit_logs (admin_id, action_type, target_gym_id, description) VALUES (?, ?, ?, ?)',
+      [req.user.id, 'ADJUST_GRACE_DAYS', user.gym_id, `Adjusted grace period by ${days > 0 ? '+' : ''}${days} days for Gym Admin ${user.username}.`]
     );
 
     return res.status(200).json({
@@ -262,8 +274,21 @@ exports.verifyReceipt = async (req, res) => {
            WHERE id = ?`,
           [baseDate, user.id]
         );
+        
+        // Log the renewal action
+        await connection.query(
+          'INSERT INTO audit_logs (admin_id, action_type, target_gym_id, description) VALUES (?, ?, ?, ?)',
+          [req.user.id, 'RENEW_GYM', payment.gym_id, `Approved payment of Rs. ${payment.amount}. Expiry extended to ${baseDate.toISOString().slice(0, 10)}.`]
+        );
+
         console.log(`[Super Admin Portal] Approved payment. Gym #${payment.gym_id} subscription extended to ${baseDate.toISOString().slice(0, 10)}`);
       }
+    } else if (status === 'rejected') {
+      // Log the rejection action
+      await connection.query(
+        'INSERT INTO audit_logs (admin_id, action_type, target_gym_id, description) VALUES (?, ?, ?, ?)',
+        [req.user.id, 'REJECT_PAYMENT', payment.gym_id, `Rejected payment of Rs. ${payment.amount}. Reason: ${rejectionReason}`]
+      );
     }
 
     await connection.commit();
@@ -471,3 +496,152 @@ exports.deleteGymOwner = async (req, res) => {
   }
 };
 
+// ==========================================
+// MASTER ADMIN SPECIFIC ENDPOINTS
+// ==========================================
+
+// 9. Get Global Settings (Payment Accounts)
+exports.getAppSettings = async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT setting_key, setting_value FROM app_settings');
+    const settings = rows.reduce((acc, curr) => {
+      acc[curr.setting_key] = curr.setting_value;
+      return acc;
+    }, {});
+    return res.status(200).json({ success: true, data: settings });
+  } catch (error) {
+    console.error('[Super Controller] getAppSettings error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 10. Update Global Settings
+exports.updateAppSettings = async (req, res) => {
+  const { easypaisa_number, jazzcash_number } = req.body;
+  try {
+    if (easypaisa_number) {
+      await pool.query("INSERT INTO app_settings (setting_key, setting_value) VALUES ('easypaisa_number', ?) ON DUPLICATE KEY UPDATE setting_value = ?", [easypaisa_number, easypaisa_number]);
+    }
+    if (jazzcash_number) {
+      await pool.query("INSERT INTO app_settings (setting_key, setting_value) VALUES ('jazzcash_number', ?) ON DUPLICATE KEY UPDATE setting_value = ?", [jazzcash_number, jazzcash_number]);
+    }
+    
+    // Log the action
+    await pool.query(
+      'INSERT INTO audit_logs (admin_id, action_type, description) VALUES (?, ?, ?)',
+      [req.user.id, 'UPDATE_SETTINGS', 'Master Admin updated system payment gateways numbers.']
+    );
+
+    return res.status(200).json({ success: true, message: 'Settings updated successfully.' });
+  } catch (error) {
+    console.error('[Super Controller] updateAppSettings error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 11. Get Audit Logs
+exports.getAuditLogs = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT a.*, u.username as admin_username, g.name as gym_name
+      FROM audit_logs a
+      LEFT JOIN users u ON a.admin_id = u.id
+      LEFT JOIN gyms g ON a.target_gym_id = g.id
+      ORDER BY a.created_at DESC
+      LIMIT 500
+    `);
+    return res.status(200).json({ success: true, data: rows });
+  } catch (error) {
+    console.error('[Super Controller] getAuditLogs error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 12. Get Managers (Super Admins)
+exports.getManagers = async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, username, status, created_at FROM users WHERE role = 'super_admin' ORDER BY id DESC");
+    return res.status(200).json({ success: true, data: rows });
+  } catch (error) {
+    console.error('[Super Controller] getManagers error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 13. Create Manager (Super Admin)
+exports.createManager = async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ success: false, message: 'Username and password required.' });
+  
+  try {
+    const [check] = await pool.query('SELECT id FROM users WHERE username = ?', [username]);
+    if (check.length > 0) return res.status(400).json({ success: false, message: 'Username already taken.' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await pool.query("INSERT INTO users (username, password, role, status) VALUES (?, ?, 'super_admin', 'active')", [username, hashedPassword]);
+    
+    await pool.query('INSERT INTO audit_logs (admin_id, action_type, description) VALUES (?, ?, ?)',
+      [req.user.id, 'CREATE_MANAGER', `Created new Manager account: ${username}`]);
+
+    return res.status(201).json({ success: true, message: 'Manager created successfully.' });
+  } catch (error) {
+    console.error('[Super Controller] createManager error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 14. Update Manager
+exports.updateManager = async (req, res) => {
+  const { id } = req.params;
+  const { username, password, status } = req.body;
+  
+  try {
+    if (username) {
+      const [check] = await pool.query('SELECT id FROM users WHERE username = ? AND id != ?', [username, id]);
+      if (check.length > 0) return res.status(400).json({ success: false, message: 'Username already taken.' });
+    }
+
+    let query = "UPDATE users SET status = ?";
+    let params = [status || 'active'];
+    
+    if (username) {
+      query += ", username = ?";
+      params.push(username);
+    }
+    
+    if (password && password.trim() !== '') {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      query += ", password = ?";
+      params.push(hashedPassword);
+    }
+    
+    query += " WHERE id = ? AND role = 'super_admin'";
+    params.push(id);
+    
+    await pool.query(query, params);
+    
+    await pool.query('INSERT INTO audit_logs (admin_id, action_type, description) VALUES (?, ?, ?)',
+      [req.user.id, 'UPDATE_MANAGER', `Updated Manager account ID ${id}.`]);
+
+    return res.status(200).json({ success: true, message: 'Manager updated successfully.' });
+  } catch (error) {
+    console.error('[Super Controller] updateManager error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 15. Delete Manager
+exports.deleteManager = async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query("DELETE FROM users WHERE id = ? AND role = 'super_admin'", [id]);
+    
+    await pool.query('INSERT INTO audit_logs (admin_id, action_type, description) VALUES (?, ?, ?)',
+      [req.user.id, 'DELETE_MANAGER', `Deleted Manager account ID ${id}.`]);
+
+    return res.status(200).json({ success: true, message: 'Manager deleted successfully.' });
+  } catch (error) {
+    console.error('[Super Controller] deleteManager error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
