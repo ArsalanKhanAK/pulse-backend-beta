@@ -241,19 +241,7 @@ async function runMigration() {
     `);
 
     // 9. Seed default Master Admin account
-    console.log('[Migration] Promoting default admin to Master Admin...');
-    const [superAdmins] = await connection.query('SELECT * FROM users WHERE username = ?;', ['superadmin']);
-    if (superAdmins.length === 0) {
-      const hashedPassword = await bcrypt.hash('super123', 10);
-      await connection.query(`
-        INSERT INTO users (username, password, role, status)
-        VALUES (?, ?, 'master_admin', 'active');
-      `, ['superadmin', hashedPassword]);
-      console.log('[Migration] Master Admin seeded: superadmin / super123');
-    } else {
-      await connection.query(`UPDATE users SET role = 'master_admin' WHERE username = 'superadmin'`);
-      console.log('[Migration] Updated existing superadmin to master_admin.');
-    }
+    console.log('[Migration] Super admin table initialized.');
 
     console.log('\n[SUCCESS] SaaS Database Migrations executed successfully!');
     await connection.end();
