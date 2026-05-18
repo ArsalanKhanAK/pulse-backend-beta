@@ -17,6 +17,8 @@ router.use(superAdminOnly);
 
 router.post('/gyms', superController.createGymOwner);
 router.get('/gyms', superController.getGyms);
+router.put('/gyms/:gymId', superController.updateGymOwner);
+router.delete('/gyms/:gymId', superController.deleteGymOwner);
 router.post('/adjust-days', superController.adjustDays);
 router.post('/adjust-grace-days', superController.adjustGraceDays);
 router.get('/receipts', superController.getPendingReceipts);

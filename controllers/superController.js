@@ -376,3 +376,98 @@ exports.getSaaSEarnings = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };
+
+// 7. Update Gym Owner & Profile details
+exports.updateGymOwner = async (req, res) => {
+  const { gymId } = req.params;
+  const { gymName, address, phone, logo_base64, username, password, monthlyFee } = req.body;
+
+  if (!gymName || !username) {
+    return res.status(400).json({ success: false, message: 'Gym Name and Admin Username are required.' });
+  }
+
+  const feeAmount = monthlyFee ? parseFloat(monthlyFee) : 1000.00;
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // A. Update Gym profile details
+    await connection.query(
+      'UPDATE gyms SET name = ?, address = ?, phone = ?, logo_base64 = ?, monthly_fee = ? WHERE id = ?',
+      [gymName, address || '', phone || '', logo_base64 || '', feeAmount, gymId]
+    );
+
+    // B. Find gym admin user associated with this gym
+    const [uRows] = await connection.query('SELECT * FROM users WHERE gym_id = ? AND role = \'gym_admin\'', [gymId]);
+    if (uRows.length === 0) {
+      await connection.rollback();
+      connection.release();
+      return res.status(404).json({ success: false, message: 'Gym Admin user not found.' });
+    }
+
+    const userId = uRows[0].id;
+
+    // C. Check if Username already exists for another user
+    const [checkUser] = await connection.query('SELECT * FROM users WHERE username = ? AND id != ?', [username, userId]);
+    if (checkUser.length > 0) {
+      await connection.rollback();
+      connection.release();
+      return res.status(400).json({ success: false, message: 'Admin username is already taken by another account.' });
+    }
+
+    // D. Update Username
+    await connection.query('UPDATE users SET username = ? WHERE id = ?', [username, userId]);
+
+    // E. Update Password if provided
+    if (password && password.trim() !== '') {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await connection.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
+    }
+
+    await connection.commit();
+    connection.release();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Gym and Admin account updated successfully!'
+    });
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+      connection.release();
+    }
+    console.error('[Super Controller] updateGymOwner error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 8. Delete Gym & Admin Owner
+exports.deleteGymOwner = async (req, res) => {
+  const { gymId } = req.params;
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // A. Explicitly delete gym admin user(s) first to avoid foreign key dangling
+    await connection.query('DELETE FROM users WHERE gym_id = ?', [gymId]);
+
+    // B. Delete gym (this will cascade delete payments, plans, members, renewals because of ON DELETE CASCADE!)
+    await connection.query('DELETE FROM gyms WHERE id = ?', [gymId]);
+
+    await connection.commit();
+    connection.release();
+
+    return res.status(200).json({ success: true, message: 'Gym and associated admin account deleted successfully.' });
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+      connection.release();
+    }
+    console.error('[Super Controller] deleteGymOwner error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
