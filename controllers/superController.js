@@ -333,8 +333,8 @@ exports.getSaaSEarnings = async (req, res) => {
     );
 
     const totalEarnings = parseFloat(total || 0);
-    const arsalanShare = totalEarnings * 0.50;
-    const uffairShare = totalEarnings * 0.50;
+    const arsalanShare = totalEarnings * 0.60;
+    const uffairShare = totalEarnings * 0.40;
 
     // B. Fetch monthly breakdown
     const [monthlyEarnings] = await pool.query(
@@ -342,8 +342,8 @@ exports.getSaaSEarnings = async (req, res) => {
         DATE_FORMAT(verified_at, '%Y-%m') AS month_key,
         DATE_FORMAT(verified_at, '%M %Y') AS month_label,
         SUM(amount) AS total,
-        SUM(amount) * 0.50 AS arsalan,
-        SUM(amount) * 0.50 AS uffair
+        SUM(amount) * 0.60 AS arsalan,
+        SUM(amount) * 0.40 AS uffair
        FROM payments
        WHERE ${monthlyWhere}
        GROUP BY month_key, month_label
