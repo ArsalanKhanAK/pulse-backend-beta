@@ -62,18 +62,6 @@ async function initializeDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
-    // Check if default admin exists, if not seed it
-    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-    const [rows] = await pool.query('SELECT * FROM users WHERE username = ?', [adminUsername]);
-    if (rows.length === 0) {
-      const plainPassword = process.env.ADMIN_PASSWORD || 'admin123';
-      const hashedPassword = await bcrypt.hash(plainPassword, 10);
-      await pool.query('INSERT INTO users (username, password) VALUES (?, ?)', [adminUsername, hashedPassword]);
-      console.log(`[Database] Default admin user '${adminUsername}' created successfully.`);
-    } else {
-      console.log(`[Database] Admin user '${adminUsername}' verified.`);
-    }
-
     // 2. Trigger the comprehensive SaaS multi-gym schema migration & superadmin seeding
     await runMigration();
 
