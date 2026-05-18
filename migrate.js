@@ -11,12 +11,21 @@ async function runMigration() {
     connection = await mysql.createConnection({
       host: process.env.DB_HOST || 'localhost',
       user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASS || ''
+      password: process.env.DB_PASS || '',
+      port: parseInt(process.env.DB_PORT || '3306', 10),
+      ssl: process.env.DB_SSL ? { rejectUnauthorized: false } : undefined
     });
 
     const dbName = process.env.DB_NAME || 'gym_management';
-    console.log(`[Migration] Ensuring database '${dbName}' exists...`);
-    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\`;`);
+    
+    // On cloud database providers like Aiven, 'defaultdb' is already created and 'avnadmin' doesn't have CREATE DATABASE privilege.
+    if (process.env.DB_SSL) {
+      console.log('[Migration] Cloud environment detected. Skipping CREATE DATABASE statement.');
+    } else {
+      console.log(`[Migration] Ensuring database '${dbName}' exists...`);
+      await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\`;`);
+    }
+    
     await connection.changeUser({ database: dbName });
     console.log('[Migration] Connected to database successfully.');
 
@@ -190,4 +199,4 @@ async function runMigration() {
   }
 }
 
-runMigration();
+module.exports = runMigration;

@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const runMigration = require('../migrate');
 require('dotenv').config();
 
 const pool = mysql.createPool({
@@ -72,6 +73,9 @@ async function initializeDatabase() {
     } else {
       console.log(`[Database] Admin user '${adminUsername}' verified.`);
     }
+
+    // 2. Trigger the comprehensive SaaS multi-gym schema migration & superadmin seeding
+    await runMigration();
 
     console.log('[Database] Database tables initialized and verified.');
   } catch (error) {
