@@ -104,6 +104,18 @@ async function runMigration() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    // 4b. Inspect 'payments' table columns to perform safe ALTERs
+    console.log('[Migration] Checking \'payments\' table structure...');
+    const [paymentColumns] = await connection.query('SHOW COLUMNS FROM payments;');
+    const paymentColNames = paymentColumns.map(c => c.Field);
+
+    if (!paymentColNames.includes('rejection_reason')) {
+      console.log('[Migration] Adding \'rejection_reason\' column to \'payments\'...');
+      await connection.query(`
+        ALTER TABLE payments ADD COLUMN rejection_reason TEXT NULL;
+      `);
+    }
+
     // 4c. Create membership_plans table
     console.log('[Migration] Creating or verifying \'membership_plans\' table...');
     await connection.query(`
