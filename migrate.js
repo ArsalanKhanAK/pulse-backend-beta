@@ -42,6 +42,18 @@ async function runMigration() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    // 2b. Inspect 'gyms' table columns to perform safe ALTERs
+    console.log('[Migration] Checking \'gyms\' table structure...');
+    const [gymColumns] = await connection.query('SHOW COLUMNS FROM gyms;');
+    const gymColNames = gymColumns.map(c => c.Field);
+
+    if (!gymColNames.includes('monthly_fee')) {
+      console.log('[Migration] Adding \'monthly_fee\' column to \'gyms\'...');
+      await connection.query(`
+        ALTER TABLE gyms ADD COLUMN monthly_fee DECIMAL(10, 2) DEFAULT 1000.00;
+      `);
+    }
+
     // 3. Inspect 'users' table columns to perform safe ALTERs
     console.log('[Migration] Checking \'users\' table structure...');
     const [userColumns] = await connection.query('SHOW COLUMNS FROM users;');

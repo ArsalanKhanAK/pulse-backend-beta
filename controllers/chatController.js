@@ -55,7 +55,7 @@ exports.getChatHistory = async (req, res) => {
 // Get Super Admin User ID (for Gym Admins to know who to send messages to)
 exports.getSuperAdminContact = async (req, res) => {
   try {
-    const [superAdmins] = await pool.query('SELECT id, username FROM users WHERE role = "super_admin" LIMIT 1');
+    const [superAdmins] = await pool.query("SELECT id, username FROM users WHERE role = 'super_admin' LIMIT 1");
     if (superAdmins.length === 0) {
       return res.status(404).json({ success: false, message: 'Super Admin not found.' });
     }
