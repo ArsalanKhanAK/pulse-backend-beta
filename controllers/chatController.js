@@ -105,13 +105,13 @@ exports.getChatContacts = async (req, res) => {
          FROM support_messages sm 
          JOIN users u_rec ON sm.receiver_id = u_rec.id
          WHERE sm.sender_id = u.id AND u_rec.role IN ('super_admin', 'master_admin') AND sm.is_read = FALSE) AS unread_count,
-        (SELECT created_at 
+        (SELECT sm2.created_at 
          FROM support_messages sm2 
          JOIN users u_sender2 ON sm2.sender_id = u_sender2.id
          JOIN users u_receiver2 ON sm2.receiver_id = u_receiver2.id
          WHERE (sm2.sender_id = u.id AND u_receiver2.role IN ('super_admin', 'master_admin')) 
             OR (u_sender2.role IN ('super_admin', 'master_admin') AND sm2.receiver_id = u.id) 
-         ORDER BY created_at DESC LIMIT 1) AS last_message_time
+         ORDER BY sm2.created_at DESC LIMIT 1) AS last_message_time
       FROM users u
       LEFT JOIN gyms g ON u.gym_id = g.id
       WHERE u.role = 'gym_admin'
