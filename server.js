@@ -68,11 +68,17 @@ io.on('connection', (socket) => {
   // ── SUPPORT CHAT REAL-TIME EVENTS ──
 
   // User joins their personal notification room so they receive messages
-  socket.on('join_chat_room', ({ userId }) => {
+  socket.on('join_chat_room', ({ userId, role }) => {
     if (userId) {
       const room = `chat_user_${userId}`;
       socket.join(room);
       console.log(`[Chat] User ${userId} joined room: ${room}`);
+
+      // Support team members also join a shared desk room
+      if (role === 'super_admin' || role === 'master_admin') {
+        socket.join('support_team_desk');
+        console.log(`[Chat] Support member ${userId} joined support_team_desk`);
+      }
     }
   });
 
@@ -88,11 +94,22 @@ io.on('connection', (socket) => {
       is_read: false,
       created_at: new Date().toISOString()
     };
-    // Deliver to receiver
-    io.to(`chat_user_${receiverId}`).emit('new_chat_message', payload);
-    // Confirm back to sender
-    io.to(`chat_user_${senderId}`).emit('new_chat_message', payload);
-    console.log(`[Chat] Message from ${senderId} => ${receiverId}: ${message.substring(0, 50)}`);
+
+    if (sender_role === 'super_admin' || sender_role === 'master_admin') {
+      // Message from Support to Gym Admin (receiverId)
+      // Deliver to the Gym Admin
+      io.to(`chat_user_${receiverId}`).emit('new_chat_message', payload);
+      // Deliver to all Support Team members so they stay perfectly in sync in real-time
+      io.to('support_team_desk').emit('new_chat_message', payload);
+    } else {
+      // Message from Gym Admin (senderId) to Support
+      // Deliver back to Gym Admin (to confirm receipt/render)
+      io.to(`chat_user_${senderId}`).emit('new_chat_message', payload);
+      // Deliver to all Support Team members
+      io.to('support_team_desk').emit('new_chat_message', payload);
+    }
+
+    console.log(`[Chat] Message from ${senderId} (${sender_role}) => ${receiverId}: ${message.substring(0, 50)}`);
   });
 
   socket.on('disconnect', () => {

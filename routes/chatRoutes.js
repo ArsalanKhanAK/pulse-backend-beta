@@ -7,9 +7,9 @@ const authMiddleware = require('../middleware/authMiddleware');
 router.use(authMiddleware);
 
 // Role check middleware for Super Admin specific chat endpoints
-const superAdminOnly = (req, res, next) => {
-  if (req.user.role !== 'super_admin') {
-    return res.status(403).json({ success: false, message: 'Access denied. Super Admin role required.' });
+const supportTeamOnly = (req, res, next) => {
+  if (req.user.role !== 'super_admin' && req.user.role !== 'master_admin') {
+    return res.status(403).json({ success: false, message: 'Access denied. Support desk access required.' });
   }
   next();
 };
@@ -20,7 +20,7 @@ router.get('/history/:userId', chatController.getChatHistory);
 // Gym Admins need to fetch Super Admin ID to send initial messages
 router.get('/super-contact', chatController.getSuperAdminContact);
 
-// Super Admin needs to see all Gym Admins
-router.get('/contacts', superAdminOnly, chatController.getChatContacts);
+// Support desk teams need to see all Gym Admins
+router.get('/contacts', supportTeamOnly, chatController.getChatContacts);
 
 module.exports = router;
