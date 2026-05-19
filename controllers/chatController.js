@@ -124,3 +124,23 @@ exports.getChatContacts = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };
+
+// Gym Admin: get initial unread message count from support team (for badge on page load/refresh)
+exports.getGymUnreadCount = async (req, res) => {
+  const currentUserId = req.user.id;
+  try {
+    const [result] = await pool.query(
+      `SELECT COUNT(*) as unread_count
+       FROM support_messages sm
+       JOIN users u_sender ON sm.sender_id = u_sender.id
+       WHERE u_sender.role IN ('super_admin', 'master_admin')
+         AND sm.receiver_id = ?
+         AND sm.is_read = FALSE`,
+      [currentUserId]
+    );
+    return res.status(200).json({ success: true, data: { unread_count: parseInt(result[0].unread_count, 10) } });
+  } catch (error) {
+    console.error('[Chat Controller] getGymUnreadCount error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};

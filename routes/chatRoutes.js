@@ -20,6 +20,9 @@ router.get('/history/:userId', chatController.getChatHistory);
 // Gym Admins need to fetch Super Admin ID to send initial messages
 router.get('/super-contact', chatController.getSuperAdminContact);
 
+// Gym Admins: fetch initial unread count from support team on page load
+router.get('/gym-unread-count', chatController.getGymUnreadCount);
+
 // Support desk teams need to see all Gym Admins
 router.get('/contacts', supportTeamOnly, chatController.getChatContacts);
 
