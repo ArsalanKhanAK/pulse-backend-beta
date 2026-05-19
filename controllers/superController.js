@@ -636,8 +636,8 @@ exports.deleteManager = async (req, res) => {
   try {
     await pool.query("DELETE FROM users WHERE id = ? AND role = 'super_admin'", [id]);
     
-    await pool.query('INSERT INTO audit_logs (admin_id, admin_username, action_type, description) VALUES (?, ?, ?, ?)',
-      [req.user.id, req.user.username || 'System', 'manager_action', `Deleted Manager account ID ${id}.`]);
+    await pool.query('INSERT INTO audit_logs (admin_id, action_type, description) VALUES (?, ?, ?)',
+      [req.user.id, 'manager_action', `Deleted Manager account ID ${id}.`]);
 
     return res.status(200).json({ success: true, message: 'Manager deleted successfully.' });
   } catch (error) {
