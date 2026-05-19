@@ -48,6 +48,10 @@ router.put('/settings', masterAdminOnly, superController.updateAppSettings);
 
 // Audit Logs
 router.get('/audit-logs', masterAdminOnly, superController.getAuditLogs);
+router.delete('/audit-logs', masterAdminOnly, superController.clearAuditLogs);
+
+// Master Credentials Update
+router.put('/credentials', masterAdminOnly, superController.updateMasterCredentials);
 
 // Manager (Super Admin) Accounts Management
 router.get('/managers', masterAdminOnly, superController.getManagers);

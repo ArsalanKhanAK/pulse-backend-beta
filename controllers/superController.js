@@ -636,12 +636,64 @@ exports.deleteManager = async (req, res) => {
   try {
     await pool.query("DELETE FROM users WHERE id = ? AND role = 'super_admin'", [id]);
     
-    await pool.query('INSERT INTO audit_logs (admin_id, action_type, description) VALUES (?, ?, ?)',
-      [req.user.id, 'DELETE_MANAGER', `Deleted Manager account ID ${id}.`]);
+    await pool.query('INSERT INTO audit_logs (admin_id, admin_username, action_type, description) VALUES (?, ?, ?, ?)',
+      [req.user.id, req.user.username || 'System', 'manager_action', `Deleted Manager account ID ${id}.`]);
 
     return res.status(200).json({ success: true, message: 'Manager deleted successfully.' });
   } catch (error) {
     console.error('[Super Controller] deleteManager error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 16. Clear Audit Logs
+exports.clearAuditLogs = async (req, res) => {
+  try {
+    await pool.query("DELETE FROM audit_logs");
+    return res.status(200).json({ success: true, message: 'Audit logs cleared successfully.' });
+  } catch (error) {
+    console.error('[Super Controller] clearAuditLogs error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 17. Update Master Credentials
+exports.updateMasterCredentials = async (req, res) => {
+  const { newUsername, newPassword } = req.body;
+  
+  if (!newUsername && !newPassword) {
+    return res.status(400).json({ success: false, message: 'Nothing to update.' });
+  }
+
+  try {
+    if (newUsername) {
+      const [check] = await pool.query('SELECT id FROM users WHERE username = ? AND id != ?', [newUsername, req.user.id]);
+      if (check.length > 0) return res.status(400).json({ success: false, message: 'Username already taken.' });
+    }
+
+    let query = "UPDATE users SET ";
+    let params = [];
+    let updates = [];
+
+    if (newUsername) {
+      updates.push("username = ?");
+      params.push(newUsername);
+    }
+    
+    if (newPassword && newPassword.trim() !== '') {
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      updates.push("password = ?");
+      params.push(hashedPassword);
+    }
+
+    query += updates.join(", ") + " WHERE id = ? AND role = 'master_admin'";
+    params.push(req.user.id);
+    
+    await pool.query(query, params);
+    
+    return res.status(200).json({ success: true, message: 'Master Admin credentials updated successfully.' });
+  } catch (error) {
+    console.error('[Super Controller] updateMasterCredentials error:', error.message);
     return res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };
