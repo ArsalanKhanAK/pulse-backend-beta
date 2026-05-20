@@ -73,9 +73,10 @@ async function runMigration() {
     if (!userColNames.includes('gym_id')) {
       console.log('[Migration] Adding \'gym_id\' column to \'users\'...');
       await connection.query(`
-        ALTER TABLE users 
-        ADD COLUMN gym_id INT NULL,
-        ADD CONSTRAINT fk_user_gym FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE SET NULL;
+        ALTER TABLE users ADD COLUMN gym_id INT NULL;
+      `);
+      await connection.query(`
+        ALTER TABLE users ADD CONSTRAINT fk_user_gym FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE SET NULL;
       `);
     }
     if (!userColNames.includes('subscription_expires_at')) {
@@ -179,9 +180,10 @@ async function runMigration() {
       console.log('[Migration] Adding \'gym_id\' column to \'members\'...');
       // Allow it to be NULL temporarily or default to 1, or let's just add it as NULLable first
       await connection.query(`
-        ALTER TABLE members 
-        ADD COLUMN gym_id INT NULL,
-        ADD CONSTRAINT fk_member_gym FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE;
+        ALTER TABLE members ADD COLUMN gym_id INT NULL;
+      `);
+      await connection.query(`
+        ALTER TABLE members ADD CONSTRAINT fk_member_gym FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE;
       `);
     }
     if (!memberColNames.includes('member_custom_id')) {
