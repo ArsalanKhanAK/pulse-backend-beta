@@ -243,7 +243,21 @@ async function runMigration() {
     `);
 
     // 9. Seed default Master Admin account
-    console.log('[Migration] Super admin table initialized.');
+    const [adminCheck] = await connection.query("SELECT * FROM users WHERE role = 'master_admin'");
+    if (adminCheck.length === 0) {
+      console.log('[Migration] Seeding default Master Admin account...');
+      const adminUser = process.env.ADMIN_USERNAME || 'admin';
+      const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(adminPass, 10);
+      await connection.query(
+        "INSERT INTO users (username, password, role, status) VALUES (?, ?, 'master_admin', 'active')",
+        [adminUser, hashedPassword]
+      );
+      console.log(`[Migration] Master Admin created: ${adminUser}`);
+    } else {
+      console.log('[Migration] Master Admin account already exists.');
+    }
 
     console.log('\n[SUCCESS] SaaS Database Migrations executed successfully!');
     await connection.end();
