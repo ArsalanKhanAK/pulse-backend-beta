@@ -108,6 +108,13 @@ async function runMigration() {
       `);
     }
 
+    if (!userColNames.includes('theme')) {
+      console.log('[Migration] Adding \'theme\' column to \'users\'...');
+      await connection.query(`
+        ALTER TABLE users ADD COLUMN theme VARCHAR(30) DEFAULT 'green';
+      `);
+    }
+
     // 4. Create payments table
     console.log('[Migration] Creating or verifying \'payments\' table...');
     await connection.query(`

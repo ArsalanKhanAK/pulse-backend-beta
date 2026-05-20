@@ -50,6 +50,7 @@ exports.login = async (req, res) => {
         username: user.username,
         role: user.role,
         status: user.status,
+        theme: user.theme || 'green',
         subscription_expires_at: user.subscription_expires_at,
         grace_period_expires_at: user.grace_period_expires_at,
         gym: gymBranding
@@ -65,7 +66,7 @@ exports.login = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT id, username, role, status, gym_id, subscription_expires_at, grace_period_expires_at FROM users WHERE id = ?',
+      'SELECT id, username, role, status, theme, gym_id, subscription_expires_at, grace_period_expires_at FROM users WHERE id = ?',
       [req.user.id]
     );
     if (rows.length === 0) {
@@ -88,6 +89,7 @@ exports.getMe = async (req, res) => {
         username: user.username,
         role: user.role,
         status: user.status,
+        theme: user.theme || 'green',
         subscription_expires_at: user.subscription_expires_at,
         grace_period_expires_at: user.grace_period_expires_at,
         gym: gymBranding
@@ -111,5 +113,21 @@ exports.getSettings = async (req, res) => {
   } catch (error) {
     console.error('[Auth Controller] getSettings error:', error.message);
     return res.status(500).json({ success: false, message: 'An internal server error occurred.' });
+  }
+};
+
+// Update user theme preference (persisted to DB)
+exports.updateTheme = async (req, res) => {
+  const { theme } = req.body;
+  const validThemes = ['green', 'orange', 'yellow', 'cyan', 'purple', 'red'];
+  if (!theme || !validThemes.includes(theme)) {
+    return res.status(400).json({ success: false, message: `Invalid theme. Choose from: ${validThemes.join(', ')}` });
+  }
+  try {
+    await pool.query('UPDATE users SET theme = ? WHERE id = ?', [theme, req.user.id]);
+    return res.status(200).json({ success: true, message: 'Theme updated successfully.', theme });
+  } catch (error) {
+    console.error('[Auth Controller] updateTheme error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };
