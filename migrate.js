@@ -53,6 +53,20 @@ async function runMigration() {
         ALTER TABLE gyms ADD COLUMN monthly_fee DECIMAL(10, 2) DEFAULT 1000.00;
       `);
     }
+    
+    if (!gymColNames.includes('reminder_template')) {
+      console.log('[Migration] Adding \'reminder_template\' column to \'gyms\'...');
+      await connection.query(`
+        ALTER TABLE gyms ADD COLUMN reminder_template TEXT NULL;
+      `);
+    }
+
+    if (!gymColNames.includes('alert_template')) {
+      console.log('[Migration] Adding \'alert_template\' column to \'gyms\'...');
+      await connection.query(`
+        ALTER TABLE gyms ADD COLUMN alert_template TEXT NULL;
+      `);
+    }
 
     // 3. Inspect 'users' table columns to perform safe ALTERs
     console.log('[Migration] Checking \'users\' table structure...');

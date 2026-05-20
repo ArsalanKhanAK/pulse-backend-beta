@@ -12,5 +12,7 @@ router.post('/connect', whatsappController.connect);
 router.post('/disconnect', whatsappController.disconnect);
 router.post('/send-message', whatsappController.sendSingleMessage);
 router.post('/trigger-reminders', whatsappController.triggerBulkReminders);
+router.get('/templates', whatsappController.getTemplates);
+router.put('/templates', whatsappController.updateTemplates);
 
 module.exports = router;

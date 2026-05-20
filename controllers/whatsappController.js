@@ -1,4 +1,5 @@
 const whatsappService = require('../services/whatsappService');
+const { pool } = require('../config/db');
 
 // Get current WhatsApp Connection Status scoped by Gym
 exports.getStatus = (req, res) => {
@@ -91,5 +92,44 @@ exports.triggerBulkReminders = async (req, res) => {
   } catch (error) {
     console.error('[WhatsApp Controller] triggerBulkReminders error:', error.message);
     return res.status(500).json({ success: false, message: 'Failed to process bulk reminders.' });
+  }
+};
+
+// Get custom WhatsApp templates for this Gym
+exports.getTemplates = async (req, res) => {
+  const gymId = req.user.gym_id;
+  if (!gymId) {
+    return res.status(400).json({ success: false, message: 'You are not linked to any Gym profile.' });
+  }
+
+  try {
+    const [rows] = await pool.query('SELECT reminder_template, alert_template FROM gyms WHERE id = ?', [gymId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Gym not found.' });
+    }
+    return res.status(200).json({ success: true, data: rows[0] });
+  } catch (error) {
+    console.error('[WhatsApp Controller] getTemplates error:', error.message);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve templates.' });
+  }
+};
+
+// Update custom WhatsApp templates for this Gym
+exports.updateTemplates = async (req, res) => {
+  const gymId = req.user.gym_id;
+  const { reminder_template, alert_template } = req.body;
+  if (!gymId) {
+    return res.status(400).json({ success: false, message: 'You are not linked to any Gym profile.' });
+  }
+
+  try {
+    await pool.query(
+      'UPDATE gyms SET reminder_template = ?, alert_template = ? WHERE id = ?',
+      [reminder_template, alert_template, gymId]
+    );
+    return res.status(200).json({ success: true, message: 'Templates saved successfully.' });
+  } catch (error) {
+    console.error('[WhatsApp Controller] updateTemplates error:', error.message);
+    return res.status(500).json({ success: false, message: 'Failed to save templates.' });
   }
 };

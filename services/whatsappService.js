@@ -313,8 +313,24 @@ async function sendBulkReminders(gymId = null) {
         continue;
       }
 
-      // Message Template
-      const message = `Assalamualaikum ${member.name}, your gym membership has expired. Kindly pay your fees to continue your membership. Thank you.`;
+      // Fetch gym specific template
+      const [gymRows] = await pool.query('SELECT name, reminder_template FROM gyms WHERE id = ?', [gId]);
+      let gymName = 'The Gym';
+      let reminderTemplate = 'Assalamualaikum [MemberName], your gym membership has expired on [ExpiryDate]. Kindly pay your fees to continue your membership. Thank you. - [GymName]';
+      
+      if (gymRows.length > 0) {
+        gymName = gymRows[0].name;
+        if (gymRows[0].reminder_template) {
+           reminderTemplate = gymRows[0].reminder_template;
+        }
+      }
+
+      // Replace magic tags
+      const memberExpiry = member.expiry_date ? (typeof member.expiry_date === 'string' ? member.expiry_date.slice(0,10) : member.expiry_date.toISOString().slice(0, 10)) : 'N/A';
+      const message = reminderTemplate
+         .replace(/\\[MemberName\\]/gi, member.name)
+         .replace(/\\[ExpiryDate\\]/gi, memberExpiry)
+         .replace(/\\[GymName\\]/gi, gymName);
       
       try {
         await sendMessage(gId, member.phone, message);
