@@ -192,6 +192,12 @@ async function runMigration() {
         ALTER TABLE members ADD COLUMN member_custom_id VARCHAR(100) NULL;
       `);
     }
+    if (!memberColNames.includes('photo_base64')) {
+      console.log('[Migration] Adding \'photo_base64\' column to \'members\'...');
+      await connection.query(`
+        ALTER TABLE members ADD COLUMN photo_base64 LONGTEXT NULL;
+      `);
+    }
 
     // Add or modify member status column safely
     if (!memberColNames.includes('status')) {

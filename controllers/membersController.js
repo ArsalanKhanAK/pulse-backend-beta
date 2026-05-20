@@ -72,7 +72,7 @@ exports.getMemberById = async (req, res) => {
 
 // 3. Create Scoped Member with Custom ID
 exports.createMember = async (req, res) => {
-  const { name, phone, start_date, expiry_date, fee_status, member_custom_id, status } = req.body;
+  const { name, phone, start_date, expiry_date, fee_status, member_custom_id, status, photo_base64 } = req.body;
   const gymId = req.user.gym_id;
 
   if (!gymId) {
@@ -94,9 +94,9 @@ exports.createMember = async (req, res) => {
     }
 
     const [result] = await pool.query(
-      `INSERT INTO members (gym_id, member_custom_id, name, phone, start_date, expiry_date, fee_status, status) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [gymId, member_custom_id, name, phone, start_date, expiry_date, fee_status, status || 'active']
+      `INSERT INTO members (gym_id, member_custom_id, name, phone, start_date, expiry_date, fee_status, status, photo_base64) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [gymId, member_custom_id, name, phone, start_date, expiry_date, fee_status, status || 'active', photo_base64 || null]
     );
 
     const [newMember] = await pool.query('SELECT * FROM members WHERE id = ?', [result.insertId]);
@@ -115,7 +115,7 @@ exports.createMember = async (req, res) => {
 // 4. Update Scoped Member
 exports.updateMember = async (req, res) => {
   const { id } = req.params;
-  const { name, phone, start_date, expiry_date, fee_status, member_custom_id, status } = req.body;
+  const { name, phone, start_date, expiry_date, fee_status, member_custom_id, status, photo_base64 } = req.body;
   const gymId = req.user.gym_id;
 
   if (!name || !phone || !start_date || !expiry_date || !fee_status || !member_custom_id) {
@@ -140,9 +140,9 @@ exports.updateMember = async (req, res) => {
 
     await pool.query(
       `UPDATE members 
-       SET name = ?, phone = ?, start_date = ?, expiry_date = ?, fee_status = ?, member_custom_id = ?, status = ? 
+       SET name = ?, phone = ?, start_date = ?, expiry_date = ?, fee_status = ?, member_custom_id = ?, status = ?, photo_base64 = ? 
        WHERE id = ? AND gym_id = ?`,
-      [name, phone, start_date, expiry_date, fee_status, member_custom_id, status || 'active', id, gymId]
+      [name, phone, start_date, expiry_date, fee_status, member_custom_id, status || 'active', photo_base64 || null, id, gymId]
     );
 
     const [updatedMember] = await pool.query('SELECT * FROM members WHERE id = ?', [id]);
