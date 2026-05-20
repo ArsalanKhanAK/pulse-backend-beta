@@ -116,16 +116,25 @@ exports.getSettings = async (req, res) => {
   }
 };
 
-// Update user theme preference (persisted to DB)
+// Update global platform theme preference (persisted to app_settings)
 exports.updateTheme = async (req, res) => {
   const { theme } = req.body;
   const validThemes = ['green', 'orange', 'yellow', 'cyan', 'purple', 'red'];
   if (!theme || !validThemes.includes(theme)) {
     return res.status(400).json({ success: false, message: `Invalid theme. Choose from: ${validThemes.join(', ')}` });
   }
+  
+  // Only Master Admin or Super Admin should be able to change global theme
+  if (req.user.role !== 'master_admin' && req.user.role !== 'super_admin') {
+    return res.status(403).json({ success: false, message: 'Only support desk can change platform theme.' });
+  }
+
   try {
-    await pool.query('UPDATE users SET theme = ? WHERE id = ?', [theme, req.user.id]);
-    return res.status(200).json({ success: true, message: 'Theme updated successfully.', theme });
+    await pool.query(
+      'INSERT INTO app_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?',
+      ['platform_theme', theme, theme]
+    );
+    return res.status(200).json({ success: true, message: 'Platform theme updated successfully.', theme });
   } catch (error) {
     console.error('[Auth Controller] updateTheme error:', error.message);
     return res.status(500).json({ success: false, message: 'Internal server error.' });
