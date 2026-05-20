@@ -124,9 +124,9 @@ exports.updateTheme = async (req, res) => {
     return res.status(400).json({ success: false, message: `Invalid theme. Choose from: ${validThemes.join(', ')}` });
   }
   
-  // Only Master Admin or Super Admin should be able to change global theme
-  if (req.user.role !== 'master_admin' && req.user.role !== 'super_admin') {
-    return res.status(403).json({ success: false, message: 'Only support desk can change platform theme.' });
+  // Only Master Admin should be able to change global theme
+  if (req.user.role !== 'master_admin') {
+    return res.status(403).json({ success: false, message: 'Only Master Admin can change platform theme.' });
   }
 
   try {
