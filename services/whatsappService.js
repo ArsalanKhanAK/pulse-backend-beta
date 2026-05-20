@@ -282,7 +282,7 @@ async function sendBulkReminders(gymId = null) {
   try {
     // Select all members with expired membership AND active account status (status = 'active')
     // Exclude members categorized as 'left' / disabled!
-    let query = 'SELECT * FROM members WHERE expiry_date < ? AND status = "active"';
+    let query = 'SELECT * FROM members WHERE expiry_date <= ? AND status = "active"';
     const params = [today];
     
     if (gymId) {
@@ -328,9 +328,9 @@ async function sendBulkReminders(gymId = null) {
       // Replace magic tags
       const memberExpiry = member.expiry_date ? (typeof member.expiry_date === 'string' ? member.expiry_date.slice(0,10) : member.expiry_date.toISOString().slice(0, 10)) : 'N/A';
       const message = reminderTemplate
-         .replace(/\\[MemberName\\]/gi, member.name)
-         .replace(/\\[ExpiryDate\\]/gi, memberExpiry)
-         .replace(/\\[GymName\\]/gi, gymName);
+         .replace(/\[MemberName\]/gi, member.name)
+         .replace(/\[ExpiryDate\]/gi, memberExpiry)
+         .replace(/\[GymName\]/gi, gymName);
       
       try {
         await sendMessage(gId, member.phone, message);
