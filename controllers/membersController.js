@@ -72,7 +72,7 @@ exports.getMemberById = async (req, res) => {
 
 // 3. Create Scoped Member with Custom ID
 exports.createMember = async (req, res) => {
-  const { name, phone, start_date, expiry_date, fee_status, member_custom_id, status, photo_base64 } = req.body;
+  const { name, phone, start_date, expiry_date, fee_status, member_custom_id, status, photo_base64, plan_id } = req.body;
   const gymId = req.user.gym_id;
 
   if (!gymId) {
@@ -98,6 +98,34 @@ exports.createMember = async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [gymId, member_custom_id, name, phone, start_date, expiry_date, fee_status, status || 'active', photo_base64 || null]
     );
+
+    // Log the initial payment if fee_status is 'Paid' so it registers in dashboard analytics
+    if (fee_status === 'Paid') {
+      let amount = 0;
+      let chosenPlanId = null;
+      let paymentType = 'manual';
+
+      if (plan_id) {
+        const [planRows] = await pool.query('SELECT * FROM membership_plans WHERE id = ? AND gym_id = ?', [plan_id, gymId]);
+        if (planRows.length > 0) {
+          const plan = planRows[0];
+          amount = parseFloat(plan.price) + parseFloat(plan.admission_fee || 0);
+          chosenPlanId = plan.id;
+          paymentType = 'plan';
+        }
+      } else {
+        const [gymRows] = await pool.query('SELECT monthly_fee FROM gyms WHERE id = ?', [gymId]);
+        if (gymRows.length > 0) {
+          amount = parseFloat(gymRows[0].monthly_fee || 1000.00);
+        }
+      }
+
+      await pool.query(
+        `INSERT INTO member_renewals (member_id, gym_id, plan_id, amount, expiry_date, payment_type) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [result.insertId, gymId, chosenPlanId, amount, expiry_date, paymentType]
+      );
+    }
 
     const [newMember] = await pool.query('SELECT * FROM members WHERE id = ?', [result.insertId]);
 
@@ -265,10 +293,10 @@ exports.renewMember = async (req, res) => {
     let paymentType = 'manual';
     let chosenPlanId = null;
 
-    // Calculate dynamic start date: if current expiry is in future, extend from it. Otherwise, extend from today.
+    // Calculate start date: always extend from the previous expiry date if it exists.
     const today = new Date();
     const currentExpiry = member.expiry_date ? new Date(member.expiry_date) : today;
-    let startDate = currentExpiry > today ? currentExpiry : today;
+    let startDate = currentExpiry;
 
     if (planId) {
       // 2. Fetch plan details
