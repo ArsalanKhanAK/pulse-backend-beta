@@ -61,6 +61,16 @@ async function runMigration() {
       `);
     }
 
+    if (!gymColNames.includes('disable_days')) {
+      console.log('[Migration] Adding custom configuration columns to \'gyms\'...');
+      await connection.query(`
+        ALTER TABLE gyms 
+        ADD COLUMN disable_days INT DEFAULT 15,
+        ADD COLUMN auto_sender_enabled TINYINT(1) DEFAULT 1,
+        ADD COLUMN auto_sender_time VARCHAR(5) DEFAULT '09:00';
+      `);
+    }
+
     if (!gymColNames.includes('alert_template')) {
       console.log('[Migration] Adding \'alert_template\' column to \'gyms\'...');
       await connection.query(`

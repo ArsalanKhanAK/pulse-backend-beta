@@ -103,33 +103,33 @@ exports.getTemplates = async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query('SELECT reminder_template, alert_template FROM gyms WHERE id = ?', [gymId]);
+    const [rows] = await pool.query('SELECT reminder_template, alert_template, disable_days, auto_sender_enabled, auto_sender_time FROM gyms WHERE id = ?', [gymId]);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Gym not found.' });
     }
     return res.status(200).json({ success: true, data: rows[0] });
   } catch (error) {
     console.error('[WhatsApp Controller] getTemplates error:', error.message);
-    return res.status(500).json({ success: false, message: 'Failed to retrieve templates.' });
+    return res.status(500).json({ success: false, message: 'Failed to retrieve templates and settings.' });
   }
 };
 
-// Update custom WhatsApp templates for this Gym
+// Update custom WhatsApp templates and Gym configuration settings
 exports.updateTemplates = async (req, res) => {
   const gymId = req.user.gym_id;
-  const { reminder_template, alert_template } = req.body;
+  const { reminder_template, alert_template, disable_days, auto_sender_enabled, auto_sender_time } = req.body;
   if (!gymId) {
     return res.status(400).json({ success: false, message: 'You are not linked to any Gym profile.' });
   }
 
   try {
     await pool.query(
-      'UPDATE gyms SET reminder_template = ?, alert_template = ? WHERE id = ?',
-      [reminder_template, alert_template, gymId]
+      'UPDATE gyms SET reminder_template = ?, alert_template = ?, disable_days = COALESCE(?, disable_days), auto_sender_enabled = COALESCE(?, auto_sender_enabled), auto_sender_time = COALESCE(?, auto_sender_time) WHERE id = ?',
+      [reminder_template, alert_template, disable_days, auto_sender_enabled, auto_sender_time, gymId]
     );
-    return res.status(200).json({ success: true, message: 'Templates saved successfully.' });
+    return res.status(200).json({ success: true, message: 'Settings saved successfully.' });
   } catch (error) {
     console.error('[WhatsApp Controller] updateTemplates error:', error.message);
-    return res.status(500).json({ success: false, message: 'Failed to save templates.' });
+    return res.status(500).json({ success: false, message: 'Failed to save settings.' });
   }
 };

@@ -1,5 +1,5 @@
 const { pool } = require('../config/db');
-
+const xlsx = require('xlsx');
 // 1. Get Scoped Members with Search and Advanced Filters (Active, Expired, Disabled/Left)
 exports.getMembers = async (req, res) => {
   const gymId = req.user.gym_id;
@@ -405,5 +405,142 @@ exports.getEarnings = async (req, res) => {
   } catch (error) {
     console.error('[Members Controller] getEarnings error:', error.message);
     return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 9. Export Members to Excel
+exports.exportMembers = async (req, res) => {
+  const gymId = req.user.gym_id;
+  if (!gymId) {
+    return res.status(400).json({ success: false, message: 'You are not linked to any Gym profile.' });
+  }
+
+  try {
+    const [members] = await pool.query('SELECT member_custom_id, name, phone, start_date, expiry_date, fee_status, status FROM members WHERE gym_id = ? ORDER BY id DESC', [gymId]);
+    
+    if (members.length === 0) {
+      return res.status(404).json({ success: false, message: 'No members found to export.' });
+    }
+
+    // Convert dates to string format
+    const formattedMembers = members.map(m => ({
+      'Member ID': m.member_custom_id,
+      'Name': m.name,
+      'Phone': m.phone,
+      'Start Date': m.start_date ? new Date(m.start_date).toISOString().slice(0, 10) : '',
+      'Expiry Date': m.expiry_date ? new Date(m.expiry_date).toISOString().slice(0, 10) : '',
+      'Fee Status': m.fee_status,
+      'Status': m.status
+    }));
+
+    const worksheet = xlsx.utils.json_to_sheet(formattedMembers);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Members');
+
+    const buffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+    res.setHeader('Content-Disposition', 'attachment; filename="gym_members.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error) {
+    console.error('[Members Controller] exportMembers error:', error.message);
+    return res.status(500).json({ success: false, message: 'Failed to export members.' });
+  }
+};
+
+// 10. Import Members from Excel
+exports.importMembers = async (req, res) => {
+  const gymId = req.user.gym_id;
+  if (!gymId) {
+    return res.status(400).json({ success: false, message: 'You are not linked to any Gym profile.' });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'Please upload an Excel or CSV file.' });
+  }
+
+  try {
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = xlsx.utils.sheet_to_json(worksheet);
+
+    if (data.length === 0) {
+      return res.status(400).json({ success: false, message: 'The uploaded file is empty.' });
+    }
+
+    let successCount = 0;
+    let skipCount = 0;
+    let errors = [];
+
+    // Fetch existing phones and custom IDs for this gym to avoid duplicates
+    const [existingMembers] = await pool.query('SELECT phone, member_custom_id FROM members WHERE gym_id = ?', [gymId]);
+    const existingPhones = new Set(existingMembers.map(m => m.phone));
+    const existingIds = new Set(existingMembers.map(m => m.member_custom_id));
+
+    for (const row of data) {
+      const customId = row['Member ID'] || row['member_id'];
+      const name = row['Name'] || row['name'];
+      let phone = row['Phone'] || row['phone'];
+      let startDate = row['Start Date'] || row['start_date'];
+      let expiryDate = row['Expiry Date'] || row['expiry_date'];
+      const feeStatus = row['Fee Status'] || row['fee_status'] || 'Unpaid';
+      const status = row['Status'] || row['status'] || 'active';
+
+      if (!customId || !name || !phone) {
+        skipCount++;
+        errors.push(`Row skipped: Missing required fields (Name, Phone, or Member ID) for ${name || 'Unknown'}.`);
+        continue;
+      }
+
+      phone = String(phone).trim();
+      
+      // Parse dates safely if they are Excel serial numbers
+      if (typeof startDate === 'number') {
+        startDate = new Date((startDate - (25567 + 2)) * 86400 * 1000).toISOString().slice(0, 10);
+      }
+      if (typeof expiryDate === 'number') {
+        expiryDate = new Date((expiryDate - (25567 + 2)) * 86400 * 1000).toISOString().slice(0, 10);
+      }
+
+      if (!startDate) startDate = new Date().toISOString().slice(0, 10);
+      if (!expiryDate) {
+        const d = new Date(startDate);
+        d.setMonth(d.getMonth() + 1);
+        expiryDate = d.toISOString().slice(0, 10);
+      }
+
+      if (existingPhones.has(phone) || existingIds.has(String(customId))) {
+        skipCount++;
+        errors.push(`Duplicate skipped: Phone (${phone}) or ID (${customId}) already exists.`);
+        continue;
+      }
+
+      try {
+        await pool.query(
+          `INSERT INTO members (gym_id, member_custom_id, name, phone, start_date, expiry_date, fee_status, status) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [gymId, customId, name, phone, startDate, expiryDate, feeStatus, status]
+        );
+        successCount++;
+        existingPhones.add(phone);
+        existingIds.add(String(customId));
+      } catch (err) {
+        skipCount++;
+        errors.push(`Database error for ${name}: ${err.message}`);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Import complete. Added: ${successCount}. Skipped: ${skipCount}.`,
+      successCount,
+      skipCount,
+      errors
+    });
+
+  } catch (error) {
+    console.error('[Members Controller] importMembers error:', error.message);
+    return res.status(500).json({ success: false, message: 'Failed to process the Excel file. Please make sure the format is correct.' });
   }
 };
