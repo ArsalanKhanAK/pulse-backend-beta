@@ -510,10 +510,20 @@ exports.importMembers = async (req, res) => {
         expiryDate = d.toISOString().slice(0, 10);
       }
 
-      if (existingPhones.has(phone) || existingIds.has(String(customId))) {
-        skipCount++;
-        errors.push(`Duplicate skipped: Phone (${phone}) or ID (${customId}) already exists.`);
-        continue;
+      const skipDuplicates = req.body.skip_duplicates === 'true';
+
+      if (skipDuplicates) {
+        if (existingPhones.has(phone) || existingIds.has(String(customId))) {
+          skipCount++;
+          errors.push(`Duplicate skipped: Phone (${phone}) or ID (${customId}) already exists.`);
+          continue;
+        }
+      } else {
+        if (existingIds.has(String(customId))) {
+          skipCount++;
+          errors.push(`Duplicate ID skipped: Member ID (${customId}) already exists.`);
+          continue;
+        }
       }
 
       try {
