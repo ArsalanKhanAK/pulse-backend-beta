@@ -697,3 +697,45 @@ exports.updateMasterCredentials = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };
+
+// 18. Get Feature Flags
+exports.getFeatureFlags = async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT setting_key, setting_value FROM app_settings WHERE setting_key LIKE "flag_%"');
+    const flags = rows.reduce((acc, curr) => {
+      acc[curr.setting_key] = curr.setting_value;
+      return acc;
+    }, {});
+    return res.status(200).json({ success: true, data: flags });
+  } catch (error) {
+    console.error('[Super Controller] getFeatureFlags error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 19. Update Feature Flags
+exports.updateFeatureFlags = async (req, res) => {
+  const flags = req.body; // e.g. { flag_whatsapp_tab: '1', flag_import_export: '0', ... }
+  try {
+    const updatePromises = Object.keys(flags).map(key => {
+      if (key.startsWith('flag_')) {
+        const value = String(flags[key]);
+        return pool.query("INSERT INTO app_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?", [key, value, value]);
+      }
+      return Promise.resolve();
+    });
+    
+    await Promise.all(updatePromises);
+
+    // Log the action
+    await pool.query(
+      'INSERT INTO audit_logs (admin_id, action_type, description) VALUES (?, ?, ?)',
+      [req.user.id, 'UPDATE_FEATURE_FLAGS', 'Master Admin updated feature visibility flags.']
+    );
+
+    return res.status(200).json({ success: true, message: 'Feature flags updated successfully.' });
+  } catch (error) {
+    console.error('[Super Controller] updateFeatureFlags error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};

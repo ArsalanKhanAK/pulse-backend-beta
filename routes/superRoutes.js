@@ -46,6 +46,10 @@ router.get('/earnings', masterAdminOnly, superController.getSaaSEarnings);
 router.get('/settings', masterAdminOnly, superController.getAppSettings);
 router.put('/settings', masterAdminOnly, superController.updateAppSettings);
 
+// Feature Flags
+router.get('/feature-flags', superController.getFeatureFlags); // Open to all authenticated users (gym_admin needs to read)
+router.put('/feature-flags', masterAdminOnly, superController.updateFeatureFlags);
+
 // Audit Logs
 router.get('/audit-logs', masterAdminOnly, superController.getAuditLogs);
 router.delete('/audit-logs', masterAdminOnly, superController.clearAuditLogs);
