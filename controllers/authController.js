@@ -41,10 +41,18 @@ exports.login = async (req, res) => {
       }
     }
 
+    // Insert Admin Session
+    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || null;
+    const [sessionResult] = await pool.query(
+      'INSERT INTO admin_sessions (admin_id, ip_address) VALUES (?, ?)',
+      [user.id, ipAddress]
+    );
+
     return res.status(200).json({
       success: true,
       message: 'Login successful.',
       token,
+      sessionId: sessionResult.insertId,
       admin: {
         id: user.id,
         username: user.username,
@@ -139,4 +147,17 @@ exports.updateTheme = async (req, res) => {
     console.error('[Auth Controller] updateTheme error:', error.message);
     return res.status(500).json({ success: false, message: 'Internal server error.' });
   }
+};
+
+// Logout handler
+exports.logout = async (req, res) => {
+  const { sessionId } = req.body;
+  if (sessionId) {
+    try {
+      await pool.query('UPDATE admin_sessions SET logout_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
+    } catch (err) {
+      console.error('[Auth Controller] logout session update error:', err.message);
+    }
+  }
+  return res.status(200).json({ success: true, message: 'Logged out successfully.' });
 };

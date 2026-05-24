@@ -78,6 +78,51 @@ exports.getGyms = async (req, res) => {
   }
 };
 
+// 2.5 Get Gym Stats for Master Admin (Total Members & Monthly Revenue)
+exports.getGymStats = async (req, res) => {
+  const { month } = req.query; // expected format 'YYYY-MM'
+  
+  if (!month) {
+    return res.status(400).json({ success: false, message: 'Month parameter (YYYY-MM) is required.' });
+  }
+
+  try {
+    const [rows] = await pool.query(`
+      SELECT 
+        g.id as gym_id,
+        g.name as gym_name,
+        (SELECT COUNT(*) FROM members m WHERE m.gym_id = g.id AND m.status != 'left') as total_members,
+        (SELECT COALESCE(SUM(amount), 0) FROM member_renewals r WHERE r.gym_id = g.id AND DATE_FORMAT(r.renewal_date, '%Y-%m') = ?) as monthly_revenue
+      FROM gyms g
+      JOIN users u ON g.id = u.gym_id
+      WHERE u.role = 'gym_admin'
+    `, [month]);
+
+    return res.status(200).json({ success: true, data: rows });
+  } catch (error) {
+    console.error('[Super Controller] getGymStats error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 2.6 Get Admin Sessions (Master Admin)
+exports.getAdminSessions = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT s.id, s.admin_id, u.username, u.role, s.login_at, s.logout_at, s.ip_address, g.name as gym_name
+      FROM admin_sessions s
+      JOIN users u ON s.admin_id = u.id
+      LEFT JOIN gyms g ON u.gym_id = g.id
+      ORDER BY s.login_at DESC
+      LIMIT 100
+    `);
+    return res.status(200).json({ success: true, data: rows });
+  } catch (error) {
+    console.error('[Super Controller] getAdminSessions error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
 // 3. Adjust Subscription Days manually (+/- days)
 exports.adjustDays = async (req, res) => {
   const { userId, days } = req.body; // days can be positive or negative integer

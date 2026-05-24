@@ -6,6 +6,9 @@ const authMiddleware = require('../middleware/authMiddleware');
 // Public Route: Login
 router.post('/login', authController.login);
 
+// Public Route: Logout
+router.post('/logout', authController.logout);
+
 // Protected Route: Retrieve Active Admin Account
 router.get('/me', authMiddleware, authController.getMe);
 

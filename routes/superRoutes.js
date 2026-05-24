@@ -27,6 +27,7 @@ router.use(authMiddleware);
 // ==========================================
 router.post('/gyms', superAdminOrMaster, superController.createGymOwner);
 router.get('/gyms', superAdminOrMaster, superController.getGyms);
+router.get('/gym-stats', masterAdminOnly, superController.getGymStats);
 router.post('/adjust-days', superAdminOrMaster, superController.adjustDays);
 router.post('/adjust-grace-days', superAdminOrMaster, superController.adjustGraceDays);
 router.get('/receipts', superAdminOrMaster, superController.getPendingReceipts);
@@ -50,9 +51,10 @@ router.put('/settings', masterAdminOnly, superController.updateAppSettings);
 router.get('/feature-flags', superController.getFeatureFlags); // Open to all authenticated users (gym_admin needs to read)
 router.put('/feature-flags', masterAdminOnly, superController.updateFeatureFlags);
 
-// Audit Logs
+// Audit Logs & Sessions
 router.get('/audit-logs', masterAdminOnly, superController.getAuditLogs);
 router.delete('/audit-logs', masterAdminOnly, superController.clearAuditLogs);
+router.get('/admin-sessions', masterAdminOnly, superController.getAdminSessions);
 
 // Master Credentials Update
 router.put('/credentials', masterAdminOnly, superController.updateMasterCredentials);

@@ -279,6 +279,19 @@ async function runMigration() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    // 8b. Create admin_sessions table
+    console.log('[Migration] Creating or verifying \'admin_sessions\' table...');
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS admin_sessions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        admin_id INT NOT NULL,
+        login_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        logout_at DATETIME NULL,
+        ip_address VARCHAR(45) NULL,
+        FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
     // 9. Seed default Master Admin account
     const [adminCheck] = await connection.query("SELECT * FROM users WHERE role = 'master_admin'");
     if (adminCheck.length === 0) {
