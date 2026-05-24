@@ -109,7 +109,7 @@ exports.getGymStats = async (req, res) => {
 exports.getAdminSessions = async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT s.id, s.admin_id, u.username, u.role, s.login_at, s.logout_at, s.ip_address, g.name as gym_name
+      SELECT s.id, s.admin_id, u.username, u.role, DATE_ADD(s.login_at, INTERVAL 5 HOUR) as login_at, DATE_ADD(s.logout_at, INTERVAL 5 HOUR) as logout_at, s.ip_address, g.name as gym_name
       FROM admin_sessions s
       JOIN users u ON s.admin_id = u.id
       LEFT JOIN gyms g ON u.gym_id = g.id
