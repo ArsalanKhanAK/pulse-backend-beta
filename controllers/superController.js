@@ -123,6 +123,17 @@ exports.getAdminSessions = async (req, res) => {
   }
 };
 
+// 2.7 Clear Admin Sessions (Master Admin)
+exports.clearAdminSessions = async (req, res) => {
+  try {
+    await pool.query('TRUNCATE TABLE admin_sessions');
+    return res.status(200).json({ success: true, message: 'Admin sessions cleared successfully.' });
+  } catch (error) {
+    console.error('[Super Controller] clearAdminSessions error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
 // 3. Adjust Subscription Days manually (+/- days)
 exports.adjustDays = async (req, res) => {
   const { userId, days } = req.body; // days can be positive or negative integer

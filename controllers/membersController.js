@@ -416,7 +416,12 @@ exports.exportMembers = async (req, res) => {
   }
 
   try {
-    const [members] = await pool.query('SELECT member_custom_id, name, phone, start_date, expiry_date, fee_status, status FROM members WHERE gym_id = ? ORDER BY id DESC', [gymId]);
+    const includeImages = req.query.images === 'true';
+    let query = 'SELECT member_custom_id, name, phone, start_date, expiry_date, fee_status, status FROM members WHERE gym_id = ? ORDER BY id DESC';
+    if (includeImages) {
+      query = 'SELECT member_custom_id, name, phone, start_date, expiry_date, fee_status, status, photo_base64 FROM members WHERE gym_id = ? ORDER BY id DESC';
+    }
+    const [members] = await pool.query(query, [gymId]);
     
     if (members.length === 0) {
       return res.status(404).json({ success: false, message: 'No members found to export.' });
@@ -460,6 +465,9 @@ exports.importMembers = async (req, res) => {
   }
 
   try {
+    const skipDuplicates = req.body.skipDuplicates === 'true';
+    const importImages = req.body.importImages === 'true';
+
     const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
@@ -486,6 +494,7 @@ exports.importMembers = async (req, res) => {
       let expiryDate = row['Expiry Date'] || row['expiry_date'];
       const feeStatus = row['Fee Status'] || row['fee_status'] || 'Unpaid';
       const status = row['Status'] || row['status'] || 'active';
+      let photo_base64 = importImages ? (row['photo_base64'] || row['Photo Base64'] || null) : null;
 
       if (!customId || !name || !phone) {
         skipCount++;
@@ -510,8 +519,6 @@ exports.importMembers = async (req, res) => {
         expiryDate = d.toISOString().slice(0, 10);
       }
 
-      const skipDuplicates = req.body.skip_duplicates === 'true';
-
       if (skipDuplicates) {
         if (existingPhones.has(phone) || existingIds.has(String(customId))) {
           skipCount++;
@@ -528,9 +535,9 @@ exports.importMembers = async (req, res) => {
 
       try {
         await pool.query(
-          `INSERT INTO members (gym_id, member_custom_id, name, phone, start_date, expiry_date, fee_status, status) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [gymId, customId, name, phone, startDate, expiryDate, feeStatus, status]
+          `INSERT INTO members (gym_id, member_custom_id, name, phone, start_date, expiry_date, fee_status, status, photo_base64) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [gymId, customId, name, phone, startDate, expiryDate, feeStatus, status, photo_base64]
         );
         successCount++;
         existingPhones.add(phone);

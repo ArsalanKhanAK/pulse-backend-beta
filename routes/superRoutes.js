@@ -55,6 +55,7 @@ router.put('/feature-flags', masterAdminOnly, superController.updateFeatureFlags
 router.get('/audit-logs', masterAdminOnly, superController.getAuditLogs);
 router.delete('/audit-logs', masterAdminOnly, superController.clearAuditLogs);
 router.get('/admin-sessions', masterAdminOnly, superController.getAdminSessions);
+router.delete('/admin-sessions', masterAdminOnly, superController.clearAdminSessions);
 
 // Master Credentials Update
 router.put('/credentials', masterAdminOnly, superController.updateMasterCredentials);

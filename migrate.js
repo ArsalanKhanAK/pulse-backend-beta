@@ -292,7 +292,28 @@ async function runMigration() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
-    // 9. Seed default Master Admin account
+    // 9. Performance Optimization Indexes
+    console.log('[Migration] Verifying performance indexes...');
+    const ensureIndex = async (table, indexName, columns) => {
+      try {
+        const [rows] = await connection.query(`SHOW INDEX FROM \`${table}\` WHERE Key_name = ?`, [indexName]);
+        if (rows.length === 0) {
+          console.log(`[Migration] Adding index '${indexName}' to '${table}'...`);
+          await connection.query(`CREATE INDEX ${indexName} ON \`${table}\`(${columns})`);
+        }
+      } catch (err) {
+        console.log(`[Migration] Failed to add index ${indexName}: ${err.message}`);
+      }
+    };
+
+    await ensureIndex('gyms', 'idx_auto_sender', 'auto_sender_enabled, auto_sender_time');
+    await ensureIndex('members', 'idx_members_gym', 'gym_id');
+    await ensureIndex('users', 'idx_users_gym', 'gym_id');
+    await ensureIndex('users', 'idx_users_role', 'role');
+    await ensureIndex('members', 'idx_members_status', 'status');
+    await ensureIndex('members', 'idx_member_custom_id', 'member_custom_id');
+
+    // 10. Seed default Master Admin account
     const [adminCheck] = await connection.query("SELECT * FROM users WHERE role = 'master_admin'");
     if (adminCheck.length === 0) {
       console.log('[Migration] Seeding default Master Admin account...');
