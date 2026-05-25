@@ -439,7 +439,16 @@ exports.exportMembers = async (req, res) => {
         'Status': m.status
       };
       if (includeImages) {
-        obj['Photo Base64'] = m.photo_base64 || '';
+        if (m.photo_base64 && m.photo_base64.length > 0) {
+          const chunkSize = 32000;
+          let chunkIndex = 1;
+          for (let i = 0; i < m.photo_base64.length; i += chunkSize) {
+            obj[`Photo Base64_${chunkIndex}`] = m.photo_base64.substring(i, i + chunkSize);
+            chunkIndex++;
+          }
+        } else {
+          obj['Photo Base64_1'] = '';
+        }
       }
       return obj;
     });
@@ -500,7 +509,20 @@ exports.importMembers = async (req, res) => {
       let expiryDate = row['Expiry Date'] || row['expiry_date'];
       const feeStatus = row['Fee Status'] || row['fee_status'] || 'Unpaid';
       const status = row['Status'] || row['status'] || 'active';
-      let photo_base64 = importImages ? (row['photo_base64'] || row['Photo Base64'] || null) : null;
+      
+      let photo_base64 = null;
+      if (importImages) {
+        let chunkIndex = 1;
+        let reconstructed = '';
+        while (row[`Photo Base64_${chunkIndex}`] !== undefined || row[`photo_base64_${chunkIndex}`] !== undefined) {
+          reconstructed += (row[`Photo Base64_${chunkIndex}`] || row[`photo_base64_${chunkIndex}`] || '');
+          chunkIndex++;
+        }
+        if (!reconstructed) {
+          reconstructed = row['photo_base64'] || row['Photo Base64'] || '';
+        }
+        photo_base64 = reconstructed || null;
+      }
 
       if (!customId || !name || !phone) {
         skipCount++;
