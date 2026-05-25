@@ -50,6 +50,8 @@ router.put('/settings', masterAdminOnly, superController.updateAppSettings);
 // Feature Flags
 router.get('/feature-flags', superController.getFeatureFlags); // Open to all authenticated users (gym_admin needs to read)
 router.put('/feature-flags', masterAdminOnly, superController.updateFeatureFlags);
+router.get('/gym-feature-flags/:gymId', masterAdminOnly, superController.getGymFeatureFlags);
+router.put('/gym-feature-flags/:gymId', masterAdminOnly, superController.updateGymFeatureFlags);
 
 // Audit Logs & Sessions
 router.get('/audit-logs', masterAdminOnly, superController.getAuditLogs);

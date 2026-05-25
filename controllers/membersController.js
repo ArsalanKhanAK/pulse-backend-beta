@@ -428,15 +428,21 @@ exports.exportMembers = async (req, res) => {
     }
 
     // Convert dates to string format
-    const formattedMembers = members.map(m => ({
-      'Member ID': m.member_custom_id,
-      'Name': m.name,
-      'Phone': m.phone,
-      'Start Date': m.start_date ? new Date(m.start_date).toISOString().slice(0, 10) : '',
-      'Expiry Date': m.expiry_date ? new Date(m.expiry_date).toISOString().slice(0, 10) : '',
-      'Fee Status': m.fee_status,
-      'Status': m.status
-    }));
+    const formattedMembers = members.map(m => {
+      const obj = {
+        'Member ID': m.member_custom_id,
+        'Name': m.name,
+        'Phone': m.phone,
+        'Start Date': m.start_date ? new Date(m.start_date).toISOString().slice(0, 10) : '',
+        'Expiry Date': m.expiry_date ? new Date(m.expiry_date).toISOString().slice(0, 10) : '',
+        'Fee Status': m.fee_status,
+        'Status': m.status
+      };
+      if (includeImages) {
+        obj['Photo Base64'] = m.photo_base64 || '';
+      }
+      return obj;
+    });
 
     const worksheet = xlsx.utils.json_to_sheet(formattedMembers);
     const workbook = xlsx.utils.book_new();

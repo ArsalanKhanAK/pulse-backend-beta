@@ -71,17 +71,31 @@ async function runMigration() {
       `);
     }
 
+    if (!gymColNames.includes('auto_sender_time')) {
+      console.log('[Migration] Adding \'auto_sender_time\' column to \'gyms\'...');
+      await connection.query(`
+        ALTER TABLE gyms ADD COLUMN auto_sender_time VARCHAR(5) DEFAULT '09:00';
+      `);
+    }
+
+    if (!gymColNames.includes('features_config')) {
+      console.log('[Migration] Adding \'features_config\' column to \'gyms\'...');
+      await connection.query(`
+        ALTER TABLE gyms ADD COLUMN features_config JSON NULL;
+      `);
+    }
+
+    // 2c. Inspect 'users' table columns to perform safe ALTERs
+    console.log('[Migration] Checking \'users\' table structure...');
+    const [userColumns] = await connection.query('SHOW COLUMNS FROM users;');
+    const userColNames = userColumns.map(c => c.Field);
+
     if (!gymColNames.includes('alert_template')) {
       console.log('[Migration] Adding \'alert_template\' column to \'gyms\'...');
       await connection.query(`
         ALTER TABLE gyms ADD COLUMN alert_template TEXT NULL;
       `);
     }
-
-    // 3. Inspect 'users' table columns to perform safe ALTERs
-    console.log('[Migration] Checking \'users\' table structure...');
-    const [userColumns] = await connection.query('SHOW COLUMNS FROM users;');
-    const userColNames = userColumns.map(c => c.Field);
 
     if (!userColNames.includes('role')) {
       console.log('[Migration] Adding \'role\' column to \'users\'...');

@@ -758,13 +758,72 @@ exports.updateMasterCredentials = async (req, res) => {
 exports.getFeatureFlags = async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT setting_key, setting_value FROM app_settings WHERE setting_key LIKE "flag_%"');
-    const flags = rows.reduce((acc, curr) => {
+    let flags = rows.reduce((acc, curr) => {
       acc[curr.setting_key] = curr.setting_value;
       return acc;
     }, {});
+
+    // If user is a gym_admin, merge with gym-specific feature overrides
+    if (req.user && req.user.role === 'gym_admin' && req.user.gym_id) {
+      const [gymRows] = await pool.query('SELECT features_config FROM gyms WHERE id = ?', [req.user.gym_id]);
+      if (gymRows.length > 0 && gymRows[0].features_config) {
+        let gymFlags = gymRows[0].features_config;
+        if (typeof gymFlags === 'string') {
+          try { gymFlags = JSON.parse(gymFlags); } catch(e) {}
+        }
+        // Merge gymFlags into flags (overriding global where set to '0' or '1')
+        if (gymFlags && typeof gymFlags === 'object') {
+          for (const key in gymFlags) {
+            if (gymFlags[key] === '0' || gymFlags[key] === '1') {
+              flags[key] = gymFlags[key];
+            }
+          }
+        }
+      }
+    }
+
     return res.status(200).json({ success: true, data: flags });
   } catch (error) {
     console.error('[Super Controller] getFeatureFlags error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 20. Get Gym Specific Feature Flags (Master Admin)
+exports.getGymFeatureFlags = async (req, res) => {
+  const { gymId } = req.params;
+  try {
+    const [rows] = await pool.query('SELECT features_config FROM gyms WHERE id = ?', [gymId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Gym not found.' });
+    }
+    let config = rows[0].features_config;
+    if (typeof config === 'string') {
+      try { config = JSON.parse(config); } catch (e) { config = {}; }
+    }
+    return res.status(200).json({ success: true, data: config || {} });
+  } catch (error) {
+    console.error('[Super Controller] getGymFeatureFlags error:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// 21. Update Gym Specific Feature Flags (Master Admin)
+exports.updateGymFeatureFlags = async (req, res) => {
+  const { gymId } = req.params;
+  const flags = req.body; // e.g. { flag_whatsapp_tab: '1', flag_import_export: null, ... }
+  try {
+    // Only keep flags that are strictly '0' or '1' (null/undefined means inherit)
+    const configToSave = {};
+    for (const key in flags) {
+      if (flags[key] === '0' || flags[key] === '1') {
+        configToSave[key] = flags[key];
+      }
+    }
+    await pool.query('UPDATE gyms SET features_config = ? WHERE id = ?', [JSON.stringify(configToSave), gymId]);
+    return res.status(200).json({ success: true, message: 'Gym feature permissions updated successfully.' });
+  } catch (error) {
+    console.error('[Super Controller] updateGymFeatureFlags error:', error.message);
     return res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };
