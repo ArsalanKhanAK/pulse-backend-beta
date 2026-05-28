@@ -2,7 +2,7 @@ const mysql = require('mysql2/promise');
 const runMigration = require('../migrate');
 require('dotenv').config();
 
-const poolConfig = {
+let poolConfig = {
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASS || '',
@@ -15,9 +15,21 @@ const poolConfig = {
   dateStrings: true
 };
 
-const pool = process.env.DB_URL 
-  ? mysql.createPool(process.env.DB_URL) 
-  : mysql.createPool(poolConfig);
+if (process.env.DB_URL) {
+  try {
+    const parsedUrl = new URL(process.env.DB_URL);
+    poolConfig.host = parsedUrl.hostname;
+    poolConfig.user = decodeURIComponent(parsedUrl.username);
+    poolConfig.password = decodeURIComponent(parsedUrl.password);
+    poolConfig.port = parsedUrl.port ? parseInt(parsedUrl.port, 10) : 3306;
+    poolConfig.database = parsedUrl.pathname.substring(1); // remove leading slash
+    poolConfig.ssl = { rejectUnauthorized: true, minVersion: 'TLSv1.2' }; // Enforce SSL for TiDB Serverless
+  } catch (err) {
+    console.error('[Database] Failed to parse DB_URL:', err.message);
+  }
+}
+
+const pool = mysql.createPool(poolConfig);
 
 async function initializeDatabase() {
   let connection;
