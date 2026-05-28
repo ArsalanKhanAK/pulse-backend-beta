@@ -2,7 +2,7 @@ const mysql = require('mysql2/promise');
 const runMigration = require('../migrate');
 require('dotenv').config();
 
-const pool = mysql.createPool({
+const poolConfig = {
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASS || '',
@@ -13,7 +13,11 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   dateStrings: true
-});
+};
+
+const pool = process.env.DB_URL 
+  ? mysql.createPool(process.env.DB_URL) 
+  : mysql.createPool(poolConfig);
 
 async function initializeDatabase() {
   let connection;
@@ -21,7 +25,7 @@ async function initializeDatabase() {
     const dbName = process.env.DB_NAME || 'gym_management';
 
     // On cloud database providers like Aiven, 'defaultdb' is already created and 'avnadmin' doesn't have CREATE DATABASE privilege.
-    if (process.env.DB_SSL) {
+    if (process.env.DB_SSL || process.env.DB_URL) {
       console.log('[Database] Cloud environment detected. Skipping CREATE DATABASE statement.');
     } else {
       // Connect without database first to ensure the database itself exists (Local only)
