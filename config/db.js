@@ -8,7 +8,7 @@ let poolConfig = {
   password: process.env.DB_PASS || '',
   database: process.env.DB_NAME || 'gym_management',
   port: parseInt(process.env.DB_PORT || '3306', 10),
-  ssl: process.env.DB_SSL ? { rejectUnauthorized: false } : undefined,
+  ssl: process.env.DB_SSL ? { rejectUnauthorized: true, minVersion: 'TLSv1.2' } : undefined,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
