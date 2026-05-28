@@ -373,10 +373,19 @@ async function runMigration() {
         gym_id INT NOT NULL,
         name VARCHAR(255) NOT NULL,
         description TEXT NULL,
+        is_global TINYINT(1) DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
+
+    // Check columns for workout_plans to perform safe ALTERs
+    const [wpColumns] = await connection.query('SHOW COLUMNS FROM workout_plans;');
+    const wpColNames = wpColumns.map(c => c.Field);
+    if (!wpColNames.includes('is_global')) {
+      console.log('[Migration] Adding is_global column to workout_plans...');
+      await connection.query(`ALTER TABLE workout_plans ADD COLUMN is_global TINYINT(1) DEFAULT 0;`);
+    }
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS workout_plan_items (
