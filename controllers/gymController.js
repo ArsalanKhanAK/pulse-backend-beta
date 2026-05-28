@@ -186,10 +186,18 @@ exports.updateGymSettings = async (req, res) => {
     if (!gymId) return res.status(400).json({ success: false, message: 'No gym linked' });
 
     const { daily_reset_time, id_prefix, id_digits } = req.body;
+    
+    let targetPrefix = id_prefix ? id_prefix.trim().toUpperCase() : 'MEM';
+
+    // Ensure the prefix is unique
+    const [existingPrefix] = await pool.query('SELECT id FROM gyms WHERE id_prefix = ? AND id != ?', [targetPrefix, gymId]);
+    if (existingPrefix.length > 0) {
+      return res.status(400).json({ success: false, message: 'This ID Prefix is already taken by another gym. Please choose a different one.' });
+    }
 
     await pool.query(
       'UPDATE gyms SET daily_reset_time = ?, id_prefix = ?, id_digits = ? WHERE id = ?',
-      [daily_reset_time || '00:00', id_prefix || 'MEM', parseInt(id_digits) || 5, gymId]
+      [daily_reset_time || '00:00', targetPrefix, parseInt(id_digits) || 5, gymId]
     );
 
     res.json({ success: true, message: 'Gym settings updated successfully' });

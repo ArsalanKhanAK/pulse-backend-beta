@@ -16,10 +16,28 @@ exports.createGymOwner = async (req, res) => {
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
-    // A. Insert Gym profile details
+    // A. Generate a Unique ID Prefix based on Gym Name
+    let basePrefix = gymName.replace(/[^A-Za-z]/g, '').substring(0, 3).toUpperCase();
+    if (basePrefix.length < 3) basePrefix = 'GYM';
+
+    let uniquePrefix = basePrefix;
+    let counter = 1;
+    let isUnique = false;
+
+    while (!isUnique) {
+      const [existing] = await connection.query('SELECT id FROM gyms WHERE id_prefix = ?', [uniquePrefix]);
+      if (existing.length === 0) {
+        isUnique = true;
+      } else {
+        uniquePrefix = `${basePrefix}${counter}`;
+        counter++;
+      }
+    }
+
+    // B. Insert Gym profile details
     const [gymResult] = await connection.query(
-      'INSERT INTO gyms (name, address, phone, logo_base64, monthly_fee) VALUES (?, ?, ?, ?, ?)',
-      [gymName, address || '', phone || '', logo_base64 || '', feeAmount]
+      'INSERT INTO gyms (name, address, phone, logo_base64, monthly_fee, id_prefix) VALUES (?, ?, ?, ?, ?, ?)',
+      [gymName, address || '', phone || '', logo_base64 || '', feeAmount, uniquePrefix]
     );
     const gymId = gymResult.insertId;
 
