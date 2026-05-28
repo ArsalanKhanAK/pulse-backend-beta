@@ -25,6 +25,7 @@ module.exports = async (req, res, next) => {
     req.user.role = dbUser.role;
     req.user.status = dbUser.status;
     req.user.gym_id = dbUser.gym_id;
+    req.user.gymId = dbUser.gym_id; // Add camelCase version for newer controllers
 
     // SaaS Expiry Gating Exceptions: 
     // Allow expired/suspended owners to fetch their details, upload receipts, check subscription state, and chat with Support

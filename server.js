@@ -15,6 +15,12 @@ const superRoutes = require('./routes/superRoutes');
 const gymRoutes = require('./routes/gymRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const planRoutes = require('./routes/planRoutes');
+
+const attendanceRoutes = require('./routes/attendanceRoutes');
+const memberPortalRoutes = require('./routes/memberPortalRoutes');
+const exerciseRoutes = require('./routes/exerciseRoutes');
+const workoutPlanRoutes = require('./routes/workoutPlanRoutes');
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -47,6 +53,12 @@ app.use('/api/super', superRoutes);
 app.use('/api/gym', gymRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/plans', planRoutes);
+
+// Phase 1 and 2 Routes
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/member-portal', memberPortalRoutes);
+app.use('/api/exercises', exerciseRoutes);
+app.use('/api/workout-plan', workoutPlanRoutes);
 
 // Socket.io Real-time Event Connection Handler
 io.on('connection', (socket) => {

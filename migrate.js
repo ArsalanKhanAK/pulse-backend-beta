@@ -71,17 +71,20 @@ async function runMigration() {
       `);
     }
 
-    if (!gymColNames.includes('auto_sender_time')) {
-      console.log('[Migration] Adding \'auto_sender_time\' column to \'gyms\'...');
-      await connection.query(`
-        ALTER TABLE gyms ADD COLUMN auto_sender_time VARCHAR(5) DEFAULT '09:00';
-      `);
-    }
-
     if (!gymColNames.includes('features_config')) {
       console.log('[Migration] Adding \'features_config\' column to \'gyms\'...');
       await connection.query(`
         ALTER TABLE gyms ADD COLUMN features_config JSON NULL;
+      `);
+    }
+
+    if (!gymColNames.includes('daily_reset_time')) {
+      console.log('[Migration] Adding gym settings columns to \'gyms\'...');
+      await connection.query(`
+        ALTER TABLE gyms 
+        ADD COLUMN daily_reset_time VARCHAR(5) DEFAULT '00:00',
+        ADD COLUMN id_prefix VARCHAR(20) DEFAULT 'MEM',
+        ADD COLUMN id_digits INT DEFAULT 5;
       `);
     }
 
@@ -306,6 +309,111 @@ async function runMigration() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    // 10. Phase 1: Smart Attendance System Tables
+    console.log('[Migration] Creating or verifying Phase 1 (Attendance) tables...');
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS attendance_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        gym_id INT NOT NULL,
+        member_id INT NOT NULL,
+        check_in_time DATETIME NOT NULL,
+        method ENUM('qr_static', 'qr_dynamic', 'manual') NOT NULL,
+        sync_status ENUM('pending_sync', 'synced') DEFAULT 'synced',
+        offline_uuid VARCHAR(255) UNIQUE NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // 11. Phase 2: Exercise Library and Workout Plans Tables
+    console.log('[Migration] Creating or verifying Phase 2 (Exercise & Workout) tables...');
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS muscle_groups (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        gym_id INT NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        icon VARCHAR(255) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS exercises (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        muscle_group VARCHAR(100) NULL,
+        target VARCHAR(100) NULL,
+        equipment VARCHAR(100) NULL,
+        image_path VARCHAR(255) NULL,
+        gif_path VARCHAR(255) NULL,
+        instructions_en TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS workout_plan_exercises (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        gym_id INT NOT NULL,
+        member_id INT NULL,
+        exercise_id VARCHAR(50) NOT NULL,
+        sets INT DEFAULT 3,
+        reps INT DEFAULT 12,
+        order_index INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // 11b. Named Workout Plans tables
+    console.log('[Migration] Creating or verifying Named Workout Plans tables...');
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS workout_plans (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        gym_id INT NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        description TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS workout_plan_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        plan_id INT NOT NULL,
+        exercise_id VARCHAR(50) NOT NULL,
+        sets INT DEFAULT 3,
+        reps INT DEFAULT 12,
+        order_index INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (plan_id) REFERENCES workout_plans(id) ON DELETE CASCADE,
+        FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS member_workout_plans (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        gym_id INT NOT NULL,
+        member_id INT NOT NULL,
+        plan_id INT NOT NULL,
+        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_member_plan_id (member_id, plan_id),
+        FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
+        FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+        FOREIGN KEY (plan_id) REFERENCES workout_plans(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Drop old unique key for existing installations
+    try {
+      await connection.query('ALTER TABLE member_workout_plans DROP INDEX unique_member_plan');
+      console.log('[Migration] Dropped old unique_member_plan index from member_workout_plans.');
+    } catch (err) {
+      // Index might not exist, ignore
+    }
+
     // 9. Performance Optimization Indexes
     console.log('[Migration] Verifying performance indexes...');
     const ensureIndex = async (table, indexName, columns) => {
@@ -328,10 +436,10 @@ async function runMigration() {
     await ensureIndex('members', 'idx_member_custom_id', 'member_custom_id');
 
     // 10. Seed default Master Admin account
-    const [adminCheck] = await connection.query("SELECT * FROM users WHERE role = 'master_admin'");
+    const [adminCheck] = await connection.query("SELECT id FROM users WHERE role = 'master_admin'");
     if (adminCheck.length === 0) {
       console.log('[Migration] Seeding default Master Admin account...');
-      const adminUser = process.env.ADMIN_USERNAME || 'admin';
+      const adminUser = process.env.ADMIN_USERNAME || 'masteradmin';
       const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
       const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash(adminPass, 10);

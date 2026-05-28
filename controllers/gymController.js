@@ -116,3 +116,85 @@ exports.getSubscriptionStatus = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };
+
+// 3. Gym Admin: Update QR Timer Setting
+exports.updateQrTimer = async (req, res) => {
+  try {
+    const { qr_timer } = req.body;
+    const gymId = req.user.gymId || req.user.gym_id;
+    
+    if (!gymId) return res.status(400).json({ success: false, message: 'No gym linked' });
+    if (!qr_timer || isNaN(qr_timer)) return res.status(400).json({ success: false, message: 'Invalid timer value' });
+
+    // Fetch current config
+    const [rows] = await pool.query('SELECT features_config FROM gyms WHERE id = ?', [gymId]);
+    let config = {};
+    if (rows.length > 0 && rows[0].features_config) {
+      try {
+        config = JSON.parse(rows[0].features_config);
+      } catch(e) {}
+    }
+    
+    config.qr_timer = parseInt(qr_timer);
+
+    await pool.query('UPDATE gyms SET features_config = ? WHERE id = ?', [JSON.stringify(config), gymId]);
+
+    res.json({ success: true, message: 'QR Timer updated successfully' });
+  } catch (error) {
+    console.error('[Gym Controller] updateQrTimer error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// 4. Gym Admin: Get Gym Settings
+exports.getGymSettings = async (req, res) => {
+  try {
+    const gymId = req.user.gymId || req.user.gym_id;
+    if (!gymId) return res.status(400).json({ success: false, message: 'No gym linked' });
+
+    const [rows] = await pool.query(
+      'SELECT daily_reset_time, id_prefix, id_digits, features_config FROM gyms WHERE id = ?',
+      [gymId]
+    );
+
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'Gym not found' });
+
+    let features_config = {};
+    if (rows[0].features_config) {
+      try { features_config = JSON.parse(rows[0].features_config); } catch(e) {}
+    }
+
+    res.json({
+      success: true,
+      data: {
+        daily_reset_time: rows[0].daily_reset_time || '00:00',
+        id_prefix: rows[0].id_prefix || 'MEM',
+        id_digits: rows[0].id_digits || 5,
+        features_config
+      }
+    });
+  } catch (error) {
+    console.error('[Gym Controller] getGymSettings error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// 5. Gym Admin: Update Gym Settings
+exports.updateGymSettings = async (req, res) => {
+  try {
+    const gymId = req.user.gymId || req.user.gym_id;
+    if (!gymId) return res.status(400).json({ success: false, message: 'No gym linked' });
+
+    const { daily_reset_time, id_prefix, id_digits } = req.body;
+
+    await pool.query(
+      'UPDATE gyms SET daily_reset_time = ?, id_prefix = ?, id_digits = ? WHERE id = ?',
+      [daily_reset_time || '00:00', id_prefix || 'MEM', parseInt(id_digits) || 5, gymId]
+    );
+
+    res.json({ success: true, message: 'Gym settings updated successfully' });
+  } catch (error) {
+    console.error('[Gym Controller] updateGymSettings error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
